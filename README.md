@@ -30,3 +30,6 @@ uv run mypy
 ```
 
 Licence: MIT. Data © Logan City Council (Creative Commons). Unofficial; not endorsed by the council.
+
+
+## v0.1.1 — Curated: stale 2015-2018 / pre-2020 datasets removed — 47 -> 40 sensors.
