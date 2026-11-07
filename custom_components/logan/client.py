@@ -53,13 +53,32 @@ class CatalogueResult:
     fetched_at: str = ""
 
 
-JUNK_TITLE_SUBSTRINGS = ("pre 2020", "2015", "2016", "2017", "2018")
+DYNAMIC_TITLE_SUBSTRINGS = (
+    "bin_collection",
+    "bin collection",
+    "road blocks",
+    "traffic count",
+    "traffic_count",
+    "development_application",
+    "development application",
+    "building_works",
+    "building works",
+    "plumbing",
+    "operational_works",
+    "operational works",
+    "kerbside cleanup",
+    "parking infringement",
+    "safety van",
+    "customer request",
+)
 
 
 def is_junk_title(title: str) -> bool:
-    """Return True if a dataset is stale/historic junk."""
+    """Return True if a dataset is not dynamic (kept whitelist) or historical."""
     lowered = title.lower()
-    return any(token in lowered for token in JUNK_TITLE_SUBSTRINGS)
+    if "historical" in lowered:
+        return True
+    return not any(token in lowered for token in DYNAMIC_TITLE_SUBSTRINGS)
 
 
 def parse_catalogue(payload: dict[str, Any]) -> list[LayerDefinition]:
