@@ -23,8 +23,8 @@ CATALOGUE_FIXTURE = {
         },
         {
             "properties": {
-                "title": "Logan_City_Council_Parks",
-                "url": "https://services5.arcgis.com/x/arcgis/rest/services/Logan_City_Council_Parks/FeatureServer/0",
+                "title": "Logan_City_Undecided_Development_Applications",
+                "url": "https://services5.arcgis.com/x/arcgis/rest/services/Logan_City_Undecided_Development_Applications/FeatureServer/0",
             }
         },
         {"properties": {"title": "", "url": ""}},
@@ -35,7 +35,9 @@ WASTE_FIXTURE = {
     "features": [
         {
             "attributes": {
-                "Formatted_Property_Address": "53 Wendron Street, ROCHEDALE SOUTH QLD 4123",
+                "Formatted_Property_Address": (
+                    "53 Wendron Street, ROCHEDALE SOUTH QLD 4123"
+                ),
                 "Collection_Day": "MON",
                 "Recycling_Week": "Week 1",
                 "Suburb": "ROCHEDALE SOUTH",

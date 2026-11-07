@@ -15,11 +15,17 @@ from .client import LayerDefinition, LoganClient
 from .const import (
     CONF_ADDRESS,
     CONF_MODE,
+    CONF_RADIUS_KM,
     CONF_SCAN_INTERVAL,
+    CONF_ZONE,
+    DEFAULT_RADIUS_KM,
     DEFAULT_SCAN_INTERVAL,
+    DEFAULT_ZONE,
     DOMAIN,
+    MODE_NEARBY,
     MODE_WASTE,
 )
+from .proximity import count_nearby
 
 PLATFORMS: list[Platform] = [Platform.SENSOR, Platform.BINARY_SENSOR]
 
@@ -51,11 +57,25 @@ class LoganCoordinator(DataUpdateCoordinator):
         self.layers: list[LayerDefinition] = []
         self.counts: dict[str, int] = {}
         self.waste: dict | None = None
+        self.nearby: list[dict] = []
+        self.road_blocks: list[dict] = []
 
     @property
     def mode(self) -> str:
         """Return the configured mode."""
         return str(self.entry.options.get(CONF_MODE, ""))
+
+    @property
+    def zone_entity(self) -> str:
+        """Return the configured zone entity id."""
+        value = self.entry.options.get(CONF_ZONE, DEFAULT_ZONE)
+        return str(value)
+
+    @property
+    def radius_km(self) -> float:
+        """Return the configured radius in kilometres."""
+        value = self.entry.options.get(CONF_RADIUS_KM, DEFAULT_RADIUS_KM)
+        return float(value) if isinstance(value, (int, float)) else DEFAULT_RADIUS_KM
 
     @property
     def address(self) -> str | None:
@@ -69,18 +89,46 @@ class LoganCoordinator(DataUpdateCoordinator):
         self.counts = {}
         for layer in self.layers:
             try:
-                self.counts[layer.title] = (
-                    await self.client.query_layer_count(layer)
-                )
+                self.counts[layer.title] = await self.client.query_layer_count(layer)
             except Exception:  # noqa: BLE001 - best effort per layer
                 self.counts[layer.title] = 0
         self.waste = None
         if self.address and self.mode == MODE_WASTE:
             self.waste = await self.client.fetch_waste_property(self.address)
+        self.nearby = []
+        self.road_blocks = []
+        if self.mode == MODE_NEARBY:
+            zone_state = self.hass.states.get(self.zone_entity)
+            if zone_state is not None:
+                try:
+                    latitude = float(zone_state.attributes["latitude"])
+                    longitude = float(zone_state.attributes["longitude"])
+                    features = await self.client.fetch_development_applications(
+                        latitude, longitude, self.radius_km
+                    )
+                    blocks = await self.client.fetch_road_blocks(
+                        latitude, longitude, self.radius_km
+                    )
+                    self.nearby = count_nearby(
+                        features,
+                        latitude=latitude,
+                        longitude=longitude,
+                        radius_km=self.radius_km,
+                    )
+                    self.road_blocks = count_nearby(
+                        blocks,
+                        latitude=latitude,
+                        longitude=longitude,
+                        radius_km=self.radius_km,
+                    )
+                except Exception:  # noqa: BLE001 - keep last known data
+                    pass
         return {
             "layers": self.layers,
             "counts": self.counts,
             "waste": self.waste,
+            "nearby": self.nearby,
+            "road_blocks": self.road_blocks,
         }
 
 
@@ -106,9 +154,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
-    unload_ok = await hass.config_entries.async_unload_platforms(
-        entry, PLATFORMS
-    )
+    unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unload_ok:
         hass.data[DOMAIN].pop(entry.entry_id, None)
     return unload_ok

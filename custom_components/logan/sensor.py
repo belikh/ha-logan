@@ -11,15 +11,13 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from . import LoganCoordinator
-from .const import MODE_WASTE
+from .const import MODE_NEARBY, MODE_WASTE
 from .waste import next_collection_date
 
 EPOCH = date(2026, 1, 5)
 
 
-class LoganLayerSensor(
-    CoordinatorEntity[LoganCoordinator], SensorEntity
-):
+class LoganLayerSensor(CoordinatorEntity[LoganCoordinator], SensorEntity):
     """Sensor exposing the feature count for one Datahub layer."""
 
     _attr_has_entity_name = True
@@ -54,9 +52,7 @@ class LoganLayerSensor(
         }
 
 
-class LoganWasteNextCollectionSensor(
-    CoordinatorEntity[LoganCoordinator], SensorEntity
-):
+class LoganWasteNextCollectionSensor(CoordinatorEntity[LoganCoordinator], SensorEntity):
     """Sensor for the next bin collection date."""
 
     _attr_has_entity_name = True
@@ -95,6 +91,69 @@ class LoganWasteNextCollectionSensor(
         }
 
 
+class LoganDevAppStatusSensor(CoordinatorEntity[LoganCoordinator], SensorEntity):
+    """Status of the nearest undecided development application."""
+
+    _attr_has_entity_name = True
+    _attr_name = "Development application (nearest)"
+    _attr_unique_id = "logan_dev_app_status"
+
+    def __init__(self, coordinator: LoganCoordinator) -> None:
+        """Initialise the status sensor."""
+        super().__init__(coordinator)
+
+    @property
+    def native_value(self) -> str | None:
+        """Return the status of the nearest application."""
+        nearby = self.coordinator.nearby
+        if not nearby:
+            return "None nearby"
+        return "Under assessment"
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        """Return nearby application details."""
+        nearby = self.coordinator.nearby
+        if not nearby:
+            return {"count": 0, "radius_km": self.coordinator.radius_km}
+        return {
+            "count": len(nearby),
+            "radius_km": self.coordinator.radius_km,
+            "distance_km": nearby[0].get("distance_km"),
+        }
+
+
+class LoganRoadBlockStatusSensor(CoordinatorEntity[LoganCoordinator], SensorEntity):
+    """Status of the nearest road block."""
+
+    _attr_has_entity_name = True
+    _attr_name = "Road block (nearest)"
+    _attr_unique_id = "logan_road_block_status"
+
+    def __init__(self, coordinator: LoganCoordinator) -> None:
+        """Initialise the status sensor."""
+        super().__init__(coordinator)
+
+    @property
+    def native_value(self) -> str | None:
+        """Return the nearest road block status."""
+        blocks = self.coordinator.road_blocks
+        if not blocks:
+            return "None nearby"
+        return "Active"
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        """Return nearby block details."""
+        blocks = self.coordinator.road_blocks
+        if not blocks:
+            return {"radius_km": self.coordinator.radius_km}
+        return {
+            "radius_km": self.coordinator.radius_km,
+            "distance_km": blocks[0].get("distance_km"),
+        }
+
+
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: ConfigEntry,
@@ -104,9 +163,10 @@ async def async_setup_entry(
     coordinator: LoganCoordinator = hass.data["logan"][entry.entry_id]
     entities: list[SensorEntity] = []
     for layer in coordinator.layers:
-        entities.append(
-            LoganLayerSensor(coordinator, layer.title, layer.url)
-        )
+        entities.append(LoganLayerSensor(coordinator, layer.title, layer.url))
     if coordinator.mode == MODE_WASTE:
         entities.append(LoganWasteNextCollectionSensor(coordinator))
+    if coordinator.mode == MODE_NEARBY:
+        entities.append(LoganDevAppStatusSensor(coordinator))
+        entities.append(LoganRoadBlockStatusSensor(coordinator))
     async_add_entities(entities)
